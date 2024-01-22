@@ -12,6 +12,12 @@ def Registro (request):
     if request.method != "POST":
         return JsonResponse({"error":"no es un método POST"}, status=405)
     else:
+        #Comprobamos que se pasen los campos todos cubiertos y las contraseñas coincidan
+        if request.POST.get("name") == None or request.POST.get("username") == None or request.POST.get("email") == None or request.POST.get("password") == None or request.POST.get("confirmpassword") == None:
+            return JsonResponse({"ALERTA":"DEBES CUBRIR TODOS LOS CAMPOS"},status=400)
+        elif request.POST.get("password") != request.POST.get("confirmpassword"):
+            return JsonResponse({"ALERTA":"LAS CONTRASEÑAS NO COINCIDEN"},status=400)
+            
         #Se comprueba que no existe ningún usuario con ese email o usuario
         
         username = request.POST.get("username")
@@ -34,10 +40,10 @@ def Registro (request):
             return JsonResponse({"Mensaje":"Registro exitoso"},status=201)
         
 
-@csrf_exempt
+#@csrf_exempt
 #Función para el login y logout dependiendo del método.
-def login_logout (request):
-    if request.method == "POST":
-        
+#def login_logout (request):
+#   if request.method == "POST":
+
     
 
