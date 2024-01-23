@@ -71,7 +71,7 @@ class Usuarios(models.Model):
         db_table = 'usuarios'
 
 
-class albumes(models.Model):
+class lbumes(models.Model):
     título = models.CharField(max_length=100, blank=True, null=True)
     año = models.TextField(blank=True, null=True)  # This field type is a guess.
 
