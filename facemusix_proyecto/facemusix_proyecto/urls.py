@@ -16,9 +16,10 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from  facemusix import views
+from facemusix import views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('usuarios', views.Registro)
+    path('usuarios', views.Registro),
+    path('session', views.login_logout)
 ]
