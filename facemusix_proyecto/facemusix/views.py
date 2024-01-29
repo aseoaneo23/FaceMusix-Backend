@@ -55,7 +55,7 @@ def login_logout(request):
         password = json_respuesta["password"]
 
         if email == "" or password == "":
-            eturn JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
+            return JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
         else:
             queryEmail = Usuarios.objects.filter(email=email).count()
             print(password)
