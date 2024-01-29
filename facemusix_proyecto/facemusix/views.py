@@ -51,41 +51,41 @@ def Registro(request):
 def login_logout(request):
     if request.method == 'POST':
         json_respuesta = json.loads(request.body)
-         email = json_respuesta["email"]
-                password = json_respuesta["password"]
+        email = json_respuesta["email"]
+        password = json_respuesta["password"]
 
-                if email == "" or password == "":
-                    return JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
-                else:
-                    queryEmail = Usuarios.objects.filter(email=email).count()
-                    print(password)
-                    print(Usuarios.objects.get(email=email).passwd)
-                    print(check_password(password, Usuarios.objects.get(email=email).passwd))
-                    if queryEmail == 0:
-                        return JsonResponse({"error": "Email incorrecto."}, status=405)
-                    elif check_password(password, Usuarios.objects.get(email=email).passwd) == 1:
-                        return JsonResponse({"error": "Contraseña incorrecta."}, status=405)
-                    else:
-                        payload = {
+        if email == "" or password == "":
+            eturn JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
+        else:
+            queryEmail = Usuarios.objects.filter(email=email).count()
+            print(password)
+            print(Usuarios.objects.get(email=email).passwd)
+            print(check_password(password, Usuarios.objects.get(email=email).passwd))
+            if queryEmail == 0:
+                return JsonResponse({"error": "Email incorrecto."}, status=405)
+            elif check_password(password, Usuarios.objects.get(email=email).passwd) == 1:
+                return JsonResponse({"error": "Contraseña incorrecta."}, status=405)
+            else:
+                payload = {
                             'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
                             'iat': datetime.datetime.utcnow(),
                         }
 
-                        token = jwt.encode(payload, 'tu_clave_secreta', algorithm='HS256')
-                        Usuarios.objects.filter(email=email).update(token=token)
-                        return JsonResponse({"token": token}, status=201)
-            elif request.method == "DELETE":
-                token = request.META.get('HTTP_AUTHORIZATION', None)
-                queryToken = Usuarios.objects.filter(token=token).count()
+                token = jwt.encode(payload, 'tu_clave_secreta', algorithm='HS256')
+                Usuarios.objects.filter(email=email).update(token=token)
+                return JsonResponse({"token": token}, status=201)
+    elif request.method == "DELETE":
+        token = request.META.get('HTTP_AUTHORIZATION', None)
+        queryToken = Usuarios.objects.filter(token=token).count()
 
 
-                if token == "" or queryToken == 0:
-                    return JsonResponse({"error": "Token no enviado o inexistente."}, status=400)
-                else:
-                    Usuarios.objects.filter(token=token).update(token="")
-                    return JsonResponse({"status": "success"})
-            else:
-                return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
+        if token == "" or queryToken == 0:
+            return JsonResponse({"error": "Token no enviado o inexistente."}, status=400)
+        else:
+            Usuarios.objects.filter(token=token).update(token="")
+            return JsonResponse({"status": "success"})
+    else:
+        return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
               
 @csrf_exempt
 #Función para el listado o creación de playlists.
