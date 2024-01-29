@@ -8,21 +8,38 @@
 from django.db import models
 
 
+class Albumes(models.Model):
+    título = models.CharField(max_length=100, blank=True, null=True)
+    año = models.TextField(blank=True, null=True)  # This field type is a guess.
+
+    class Meta:
+        managed = False
+        db_table = 'albumes'
+
+
 class Amigos(models.Model):
-    id_usuario = models.OneToOneField('Usuarios', models.DO_NOTHING, db_column='id_usuario', primary_key=True)  # The composite primary key (id_usuario, id_usuario_amigo) found, that is not supported. The first column is selected.
-    id_usuario_amigo = models.ForeignKey('Usuarios', models.DO_NOTHING, db_column='id_usuario_amigo', related_name='amigos_id_usuario_amigo_set')
+    id_usuario = models.ForeignKey('Usuarios', on_delete=models.CASCADE, db_column='id_usuario')
+    id_usuario_amigo = models.ForeignKey('Usuarios', on_delete=models.CASCADE, db_column='id_usuario_amigo', related_name='amigos_id_usuario_amigo_set')
 
     class Meta:
         managed = False
         db_table = 'amigos'
-        unique_together = (('id_usuario', 'id_usuario_amigo'),)
+
+
+class Artistas(models.Model):
+    nombre = models.CharField(max_length=100, blank=True, null=True)
+    genero = models.CharField(max_length=100, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'artistas'
 
 
 class Canciones(models.Model):
     título = models.CharField(max_length=100, blank=True, null=True)
     duración = models.TimeField(blank=True, null=True)
-    album = models.ForeignKey('lbumes', models.DO_NOTHING, blank=True, null=True)
-    ratings = models.ForeignKey('Ratings', models.DO_NOTHING, blank=True, null=True)
+    album = models.ForeignKey(Albumes, on_delete=models.CASCADE)
+    artista = models.ForeignKey(Artistas, on_delete=models.CASCADE)
 
     class Meta:
         managed = False
@@ -30,13 +47,12 @@ class Canciones(models.Model):
 
 
 class Cancionplaylist(models.Model):
-    playlist_id = models.IntegerField(primary_key=True)  # The composite primary key (playlist_id, cancion_id) found, that is not supported. The first column is selected.
-    cancion_id = models.IntegerField()
+    playlist = models.ForeignKey('Playlist', on_delete=models.CASCADE )
+    cancion = models.ForeignKey(Canciones, on_delete=models.CASCADE)
 
     class Meta:
         managed = False
         db_table = 'cancionplaylist'
-        unique_together = (('playlist_id', 'cancion_id'),)
 
 
 class Playlist(models.Model):
@@ -48,9 +64,10 @@ class Playlist(models.Model):
 
 
 class Ratings(models.Model):
-    author = models.CharField(max_length=100, blank=True, null=True)
+    author = models.ForeignKey(Artistas, on_delete=models.CASCADE, db_column='author')
     comments = models.CharField(max_length=1000, blank=True, null=True)
     stars = models.IntegerField(blank=True, null=True)
+    cancion = models.ForeignKey(Canciones, on_delete=models.CASCADE)
 
     class Meta:
         managed = False
@@ -63,18 +80,8 @@ class Usuarios(models.Model):
     nombre_usuario = models.CharField(max_length=100, blank=True, null=True)
     email = models.CharField(max_length=100, blank=True, null=True)
     passwd = models.CharField(max_length=100, blank=True, null=True)
-    artista = models.IntegerField(blank=True, null=True)
     token = models.CharField(max_length=1000, blank=True, null=True)
 
     class Meta:
         managed = False
         db_table = 'usuarios'
-
-
-class lbumes(models.Model):
-    título = models.CharField(max_length=100, blank=True, null=True)
-    año = models.TextField(blank=True, null=True)  # This field type is a guess.
-
-    class Meta:
-        managed = False
-        db_table = 'álbumes'
