@@ -21,5 +21,8 @@ from facemusix import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('usuarios', views.Registro),
+    path('playlists',views.Playlists),
+    path('playlists/<int:playlistid>',views.eliminarPlaylist)
     path('session', views.login_logout)
+
 ]
