@@ -91,10 +91,10 @@ def login_logout(request):
 #Función para el listado o creación de playlists.
 def Playlists(request):
     #Guardar datos de token y comprobar que se esté pasando ese token
-    #token = request.headers.get("sessionToken",None)
+    token = request.headers.get("sessionToken",None)
 
-    #if token == None:
-     #   return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
+    if token == None:
+       return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
     
     #Endpoint crear playlist
     #Si el método es post es una creación de una playlist
@@ -133,7 +133,7 @@ def Playlists(request):
         
 @csrf_exempt
 #funcion para eliminar plahylist
-def eliminarPlaylist (request,playlistid):
+def playlistById (request,playlistid):
 #Guardar datos de token y comprobar que se esté pasando ese token
     #token = request.headers.get("sessionToken",None)
 
@@ -155,5 +155,21 @@ def eliminarPlaylist (request,playlistid):
     
     #Endpoint buscar playlist por id para ver su contenido
     elif request.method == "GET":
+        #Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
+        #también será un objeto. MIRAR *
+        queryPlaylist = Cancionplaylist.objects.filter(playlist = playlistid).select_related('cancion')
+        
+        songs_list = []
+        #Recorremos el array y guardamos en un diccionario los datos de las canciones que queremos y en un array a su vez
+        for cancion in queryPlaylist:
+            song = {
+                'nombre': cancion.cancion.título,
+                'duración': cancion.cancion.duración,
+                'album': cancion.cancion.album.título,#* --> aquí queremos el titulo del album y album es foreign en canciones.
+                'artista': cancion.cancion.artista.nombre
+            }
+            songs_list.append(song)
 
-        queryPlaylist = Canciones.select_related('playlist').filter(id = playlistid)
+        #print(songs_list)
+
+        return JsonResponse(songs_list, safe=False)
