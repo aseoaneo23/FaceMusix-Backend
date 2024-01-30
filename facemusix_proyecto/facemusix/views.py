@@ -6,8 +6,7 @@ import json
 from django.contrib.auth.hashers import check_password
 import jwt
 import datetime
-from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, Ratings
-from django.core.paginator import Paginator
+from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, lbumes, Ratings
 
 
 @csrf_exempt
@@ -64,7 +63,7 @@ def login_logout(request):
             print(check_password(password, Usuarios.objects.get(email=email).passwd))
             if queryEmail == 0:
                 return JsonResponse({"error": "Email incorrecto."}, status=405)
-            elif check_password(password, Usuarios.objects.get(email=email).passwd) == 0:
+            elif check_password(password, Usuarios.objects.get(email=email).passwd) == 1:
                 return JsonResponse({"error": "Contraseña incorrecta."}, status=405)
             else:
                 payload = {
@@ -87,52 +86,3 @@ def login_logout(request):
             return JsonResponse({"status": "success"})
     else:
         return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
-
-
-#Función buscar Canciones
-@csrf_exempt
-def buscar_canciones(request):
-
-    if request.method == "GET":
-        query_canciones = Canciones.objects.all()  # Se recogen todas la canciones en una QUERY
-        query_search = request.GET.get("search", None)  # Se recoge el parámetro enviado SEARCH
-
-        if query_search:
-            query_canciones = query_canciones.filter(título__icontains=query_search)  # Filtrado de canciones por titulo
-
-        # Ordenación por defecto en título o por parámetro sort.
-        sort_by = request.GET.get("sort", "título")
-        query_canciones.order_by(sort_by)
-
-        # Paginación
-        paginador = Paginator(query_canciones, request.GET.get("limit", 10))  # Paginador de 10 pág. por defecto
-        page = request.GET.get("pag", 1)  # Primera página por defecto
-
-        # Generación de json
-        canciones = paginador.get_page(page)  # Se escoge la página que se inserta en el json
-        json_canciones = []
-        json_cancion = {}
-        for cancion in canciones:  # Iteración for para cada canción en canciones
-
-            query_ratings = Ratings.objects.all().filter(cancion=cancion.id)
-
-            json_cancion = {
-                "título": cancion.título,
-                "duración": cancion.duración,
-                "album": cancion.album.título,
-                "rating": {
-                    query_ratings.authon,
-                    query_ratings.comments,
-                    query_ratings.stars
-                }
-            }
-            json_canciones.append(json_cancion)
-
-        return JsonResponse({"canciones": json_canciones, "total": paginador.count, "page": page},
-                             status=200)
-
-    else:
-        return JsonResponse({"error": "No se ha enviado un GET"}, status=405)
-
-
-
