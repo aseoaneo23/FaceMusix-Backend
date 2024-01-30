@@ -6,7 +6,7 @@ import json
 from django.contrib.auth.hashers import check_password
 import jwt
 import datetime
-from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, lbumes, Ratings
+from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, Ratings
 from django.core.paginator import Paginator
 
 
@@ -98,7 +98,7 @@ def buscar_canciones(request):
         query_search = request.GET.get("search", None)  # Se recoge el parámetro enviado SEARCH
 
         if query_search:
-           query_canciones = query_canciones.filter(título=query_search)  # Filtrado de canciones por titulo
+            query_canciones = query_canciones.filter(título__icontains=query_search)  # Filtrado de canciones por titulo
 
         # Ordenación por defecto en título o por parámetro sort.
         sort_by = request.GET.get("sort", "título")
@@ -110,14 +110,23 @@ def buscar_canciones(request):
 
         # Generación de json
         canciones = paginador.get_page(page)  # Se escoge la página que se inserta en el json
-        json_canciones = [
-            {
+        json_canciones = []
+        json_cancion = {}
+        for cancion in canciones:  # Iteración for para cada canción en canciones
+
+            query_ratings = Ratings.objects.all().filter(cancion=cancion.id)
+
+            json_cancion = {
                 "título": cancion.título,
                 "duración": cancion.duración,
                 "album": cancion.album.título,
-                "rating": cancion.ratings
-            }for cancion in canciones  # Iteración for para cada canción en canciones
-        ]
+                "rating": {
+                    query_ratings.authon,
+                    query_ratings.comments,
+                    query_ratings.stars
+                }
+            }
+            json_canciones.append(json_cancion)
 
         return JsonResponse({"canciones": json_canciones, "total": paginador.count, "page": page},
                              status=200)
