@@ -23,5 +23,6 @@ urlpatterns = [
     path('usuarios', views.Registro),
     path('playlists',views.Playlists),
     path('playlists/<int:playlistid>',views.playlistById),
-    path('session', views.login_logout)
+    path('session', views.login_logout),
+    path('buscarusuarios',views.buscarUsuarios)
 ]

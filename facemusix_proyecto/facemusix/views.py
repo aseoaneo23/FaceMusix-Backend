@@ -15,7 +15,7 @@ def Registro(request):
     # Si la petición no es POST mandar error, sólo puede ser un POST.
     if request.method != "POST":
 
-        return JsonResponse({"error":"método HTTP no soportado"}, status=405)
+        return JsonResponse({"error":"metodo HTTP no soportado"}, status=405)
     else:
         #Comprobamos que se pasen los campos todos cubiertos y las contraseñas coincidan
         if request.POST.get("name") == "" or request.POST.get("username") == "" or request.POST.get("email") == "" or request.POST.get("password") == "" or request.POST.get("confirmpassword") == "":
@@ -173,3 +173,43 @@ def playlistById (request,playlistid):
         #print(songs_list)
 
         return JsonResponse(songs_list, safe=False)
+    
+@csrf_exempt
+#Función para buscar usuarios por id o por nombre
+def buscarUsuarios (request):
+    if request.method == "GET":
+        
+        clientQuery = request.GET.get("search", None)
+        sessionToken = request.headers.get('sessionToken',None)
+        MyUser = 1 #Usuarios.objects.filter(token = sessionToken) HARDCODEADO PARA PROBAR
+    
+        if clientQuery is None or clientQuery == "":
+            return JsonResponse({"ERROR":"No has pasado ningún parámetro \"search\" de búsqueda"}, status=400)
+
+        if sessionToken == None:
+         #   return JsonResponse({"ERROR":"No has pasado un token"},status=401)
+        #else: para hacer pruebas ya que no hay token
+            #Busqueda de el usuario solicitado por el search
+            queryToSearch = Usuarios.objects.filter(nombre_usuario = clientQuery)
+
+            if queryToSearch.exists():
+                #Controlamos los resultados obtenidos
+                print(str(queryToSearch))
+                #Consulta de comprobación de tabla amigos, para ver si es o no mi amigo y cubrir el campo booleano following.
+                queryFollowing = Amigos.objects.filter(id_usuario = MyUser, id_usuario_amigo = queryToSearch.first().pk).count()#.first() accede al primer campo del array
+
+                if queryFollowing < 0 :
+                        following = False
+                else:
+                    following = True
+
+                user ={
+                    "IMG": queryToSearch.first().url_avatar,
+                    "NAME": queryToSearch.first().nombre,
+                    "YOUFOLLOWHIM": following
+                }
+                return JsonResponse(user,status=200, safe=False)
+            else:
+                return JsonResponse({"INFO":"El usuario con nombre: " + clientQuery + " no existe."})
+    else:
+        return JsonResponse({"ERROR":"Metodo HTTP no soportado"},status=400)
