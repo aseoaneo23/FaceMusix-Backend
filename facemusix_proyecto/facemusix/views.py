@@ -89,16 +89,16 @@ def login_logout(request):
         return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
               
 @csrf_exempt
-#Función para el listado o creación de playlists.
+# Función para el listado o creación de playlists.
 def Playlists(request):
-    #Guardar datos de token y comprobar que se esté pasando ese token
+    # Guardar datos de token y comprobar que se esté pasando ese token
     token = request.headers.get("sessionToken",None)
 
     if token == None:
        return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
     
-    #Endpoint crear playlist
-    #Si el método es post es una creación de una playlist
+    # Endpoint crear playlist
+    # Si el método es post es una creación de una playlist
     if request.method == "POST":
         playlistName = request.POST.get("playlistName")
 
@@ -200,15 +200,16 @@ def buscar_canciones(request):
         json_cancion = {}
         for cancion in canciones:  # Iteración for para cada canción en canciones
 
-            query_ratings = Ratings.objects.all().filter(cancion=cancion.id)
+            query_ratings = Ratings.objects.filter(cancion=cancion.id)
 
             for rating in query_ratings:
+
                 json_cancion = {
                     "título": cancion.título,
                     "duración": cancion.duración,
                     "album": cancion.album.título,
                     "rating": {
-                        "autor": rating.author,
+                        "autor": rating.author.nombre_usuario,
                         "comentario": rating.comments,
                         "stars": rating.stars
                     }
