@@ -191,18 +191,17 @@ def buscarUsuarios (request):
         #else: para hacer pruebas ya que no hay token
             #Busqueda de el usuario solicitado por el search
             queryToSearch = Usuarios.objects.filter(nombre_usuario = clientQuery)
-
+            #Controlamos los resultados obtenidos
             if queryToSearch.exists():
-                #Controlamos los resultados obtenidos
-                print(str(queryToSearch))
+ 
                 #Consulta de comprobación de tabla amigos, para ver si es o no mi amigo y cubrir el campo booleano following.
                 queryFollowing = Amigos.objects.filter(id_usuario = MyUser, id_usuario_amigo = queryToSearch.first().pk).count()#.first() accede al primer campo del array
 
-                if queryFollowing < 0 :
+                if queryFollowing < 1:
                         following = False
                 else:
                     following = True
-
+                #Instanciamos el objeto a mostrar
                 user ={
                     "IMG": queryToSearch.first().url_avatar,
                     "NAME": queryToSearch.first().nombre,
