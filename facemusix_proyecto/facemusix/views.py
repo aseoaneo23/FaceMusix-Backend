@@ -87,12 +87,98 @@ def login_logout(request):
             return JsonResponse({"status": "success"})
     else:
         return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
+              
+@csrf_exempt
+#Función para el listado o creación de playlists.
+def Playlists(request):
+    #Guardar datos de token y comprobar que se esté pasando ese token
+    token = request.headers.get("sessionToken",None)
+
+    if token == None:
+       return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
+    
+    #Endpoint crear playlist
+    #Si el método es post es una creación de una playlist
+    if request.method == "POST":
+        playlistName = request.POST.get("playlistName")
+
+        if playlistName != "":
+
+            queryPlaylists = Playlist.objects.filter(nombre=playlistName).count()
+            if queryPlaylists > 0:
+                return JsonResponse({"ALERTA":"YA EXISTE UNA PLAYLIST CON EL NOMBRE INTRODUCIDO"},status=409)
+            else:
+                newPlaylist = Playlist(nombre=playlistName)
+                newPlaylist.save()
+                return JsonResponse({"INFO":"SE HA CREADO SATISFACTORIAMENTE LA PLAYLIST"},status=201)
+        else:
+            return JsonResponse({"ALERTA":"EL NOMBRE DE LA PLAYLIST NO PUEDE QUEDAR VACIO"},status=400)
+        
+    #Endpoint listar playlists
+    # si el método es GET, se listan las playlists
+    elif request.method == "GET":
+
+        queryPlaylists = Playlist.objects.all()
+
+        finalResponse = []
+
+        for everyPlaylist in queryPlaylists:
+            dicc = {}
+            dicc["Nombre"] = everyPlaylist.nombre
+            finalResponse.append(dicc)
+
+        return JsonResponse(finalResponse, safe=False)
+            
+    else:
+        return JsonResponse({"ALERTA":"NO HAS MANDADO UN MÉTODO ADECUADO. PRUEBA CON POST O GET"})
 
 
-# Función buscar Canciones
+@csrf_exempt
+# funcion para eliminar plahylist
+def playlistById (request,playlistid):
+    # Guardar datos de token y comprobar que se esté pasando ese token
+    # token = request.headers.get("sessionToken",None)
+
+    # if token == None:
+    #   return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
+    
+    # Endpoint borrar playlist por id
+    # Comprobamos el método
+    if request.method == "DELETE":
+
+        checkidQuery = Playlist.objects.filter(id = playlistid).count()
+
+        # Comprobamos que exista la playlist a borrar
+        if checkidQuery == 0:
+            return JsonResponse({"ERROR": "LA PLAYLIST CON EL ID SELECCIONADO NO EXISTE"},status=409)
+        else:
+            deleteQuery = Playlist.objects.filter(id = playlistid).delete()
+            return JsonResponse({"INFO": "PLAYLIST ELIMINADA SATISFACTORIAMENTE"},status=200)
+    
+    # Endpoint buscar playlist por id para ver su contenido
+    elif request.method == "GET":
+        # Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
+        # también será un objeto. MIRAR *
+        queryPlaylist = Cancionplaylist.objects.filter(playlist = playlistid).select_related('cancion')
+
+        songs_list = []
+        # Recorremos el array y guardamos en un diccionario los datos de las canciones y en un array a su vez.
+        for cancion in queryPlaylist:
+            song = {
+                'nombre': cancion.cancion.título,
+                'duración': cancion.cancion.duración,
+                'album': cancion.cancion.album.título,  # queremos el titulo del album y album: foreign en canciones.
+                'artista': cancion.cancion.artista.nombre
+            }
+            songs_list.append(song)
+
+        # print(songs_list)
+
+        return JsonResponse(songs_list, safe=False)
+
+
 @csrf_exempt
 def buscar_canciones(request):
-
     if request.method == "GET":
         query_canciones = Canciones.objects.all()  # Se recogen todas la canciones en una QUERY
         query_search = request.GET.get("search", None)  # Se recoge el parámetro enviado SEARCH
@@ -127,10 +213,10 @@ def buscar_canciones(request):
                         "stars": rating.stars
                     }
                 }
-                json_canciones.append(json_cancion)
+                json_canciones.append(json_cancion)  # Se añade el json de cada canción en el json_canciones
 
         return JsonResponse({"canciones": json_canciones, "total": paginador.count, "page": page},
-                             status=200)
+                            status=200)
 
     else:
         return JsonResponse({"error": "No se ha enviado un GET"}, status=405)
