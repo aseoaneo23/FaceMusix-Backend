@@ -181,16 +181,18 @@ def buscarUsuarios (request):
         
         clientQuery = request.GET.get("search", None)
         sessionToken = request.headers.get('sessionToken',None)
-        MyUser = 1 #Usuarios.objects.filter(token = sessionToken) HARDCODEADO PARA PROBAR
+        MyUser = Usuarios.objects.filter(token = sessionToken) #HARDCODEAR PARA PROBAR
     
         if clientQuery is None or clientQuery == "":
             return JsonResponse({"ERROR":"No has pasado ningún parámetro \"search\" de búsqueda"}, status=400)
 
-        if sessionToken == None:
-         #   return JsonResponse({"ERROR":"No has pasado un token"},status=401)
-        #else: para hacer pruebas ya que no hay token
-            #Busqueda de el usuario solicitado por el search
-            queryToSearch = Usuarios.objects.filter(nombre_usuario = clientQuery)
+        if sessionToken != None:
+            return JsonResponse({"ERROR":"No has pasado un token"},status=401)
+        else:
+            #Busqueda de el usuario solicitado por el search con conatins para que muestre todo lo que contenga esa cadena
+            queryToSearch = Usuarios.objects.filter(nombre_usuario__icontains = clientQuery)
+            #Ordenacion
+            
             #Controlamos los resultados obtenidos
             if queryToSearch.exists():
  
