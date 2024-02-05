@@ -6,7 +6,8 @@ import json
 from django.contrib.auth.hashers import check_password
 import jwt
 import datetime
-from .models import Amigos,Canciones,Cancionplaylist,Playlist,Usuarios,Albumes,Ratings,Artistas
+from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, Ratings
+from django.core.paginator import Paginator
 
 
 @csrf_exempt
@@ -14,12 +15,12 @@ from .models import Amigos,Canciones,Cancionplaylist,Playlist,Usuarios,Albumes,R
 def Registro(request):
     # Si la petición no es POST mandar error, sólo puede ser un POST.
     if request.method != "POST":
-
-        return JsonResponse({"error":"método HTTP no soportado"}, status=405)
+        return JsonResponse({"error": "no es un método POST"}, status=405)
     else:
-        #Comprobamos que se pasen los campos todos cubiertos y las contraseñas coincidan
-        if request.POST.get("name") == "" or request.POST.get("username") == "" or request.POST.get("email") == "" or request.POST.get("password") == "" or request.POST.get("confirmpassword") == "":
-            return JsonResponse({"ALERTA":"DEBES CUBRIR TODOS LOS CAMPOS"},status=400)
+        # Comprobamos que se pasen los campos todos cubiertos y las contraseñas coincidan
+        if request.POST.get("name") == None or request.POST.get("username") == None or request.POST.get(
+                "email") == None or request.POST.get("password") == None or request.POST.get("confirmpassword") == None:
+            return JsonResponse({"ALERTA": "DEBES CUBRIR TODOS LOS CAMPOS"}, status=400)
         elif request.POST.get("password") != request.POST.get("confirmpassword"):
             return JsonResponse({"ALERTA": "LAS CONTRASEÑAS NO COINCIDEN"}, status=400)
 
@@ -30,12 +31,11 @@ def Registro(request):
         # Consultas para comprobar si existe el usuario
         queryEmails = Usuarios.objects.filter(email=email).count()
         queryUsernames = Usuarios.objects.filter(nombre_usuario=username).count()
-
-        #Comprobaciones para evitar redundancia
-        if(queryEmails > 0):
-            return JsonResponse({"Mensaje":"el email ya esta registrado"},status=409)
-        elif(queryUsernames > 0):
-            return JsonResponse({"Mensaje":"el nombre de usuario ya esta en uso"},status=409)
+        # Comprobaciones para evitar redundancia
+        if (queryEmails > 0):
+            return JsonResponse({"Mensaje": "el email ya esta registrado"})
+        elif (queryUsernames > 0):
+            return JsonResponse({"Mensaje": "el nombre de usuario ya esta en uso"})
         else:
             name = request.POST.get("name")
             password_withouthash = request.POST.get("password")
@@ -51,6 +51,7 @@ def Registro(request):
 def login_logout(request):
     if request.method == 'POST':
         json_respuesta = json.loads(request.body)
+
         email = json_respuesta["email"]
         password = json_respuesta["password"]
 
@@ -67,9 +68,9 @@ def login_logout(request):
                 return JsonResponse({"error": "Contraseña incorrecta."}, status=405)
             else:
                 payload = {
-                            'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
-                            'iat': datetime.datetime.utcnow(),
-                        }
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                    'iat': datetime.datetime.utcnow(),
+                }
 
                 token = jwt.encode(payload, 'tu_clave_secreta', algorithm='HS256')
                 Usuarios.objects.filter(email=email).update(token=token)
@@ -88,16 +89,16 @@ def login_logout(request):
         return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
               
 @csrf_exempt
-#Función para el listado o creación de playlists.
+# Función para el listado o creación de playlists.
 def Playlists(request):
-    #Guardar datos de token y comprobar que se esté pasando ese token
+    # Guardar datos de token y comprobar que se esté pasando ese token
     token = request.headers.get("sessionToken",None)
 
     if token == None:
        return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
     
-    #Endpoint crear playlist
-    #Si el método es post es una creación de una playlist
+    # Endpoint crear playlist
+    # Si el método es post es una creación de una playlist
     if request.method == "POST":
         playlistName = request.POST.get("playlistName")
 
@@ -130,46 +131,95 @@ def Playlists(request):
             
     else:
         return JsonResponse({"ALERTA":"NO HAS MANDADO UN MÉTODO ADECUADO. PRUEBA CON POST O GET"})
-        
-@csrf_exempt
-#funcion para eliminar plahylist
-def playlistById (request,playlistid):
-#Guardar datos de token y comprobar que se esté pasando ese token
-    #token = request.headers.get("sessionToken",None)
 
-    #if token == None:
-     #   return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
+
+@csrf_exempt
+# funcion para eliminar plahylist
+def playlistById (request,playlistid):
+    # Guardar datos de token y comprobar que se esté pasando ese token
+    # token = request.headers.get("sessionToken",None)
+
+    # if token == None:
+    #   return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
     
-    #Endpoint borrar playlist por id
-    #Comprobamos el método
+    # Endpoint borrar playlist por id
+    # Comprobamos el método
     if request.method == "DELETE":
 
         checkidQuery = Playlist.objects.filter(id = playlistid).count()
 
-        #COmprobamos que exista la playlist a borrar
+        # Comprobamos que exista la playlist a borrar
         if checkidQuery == 0:
-            return JsonResponse({"ERROR":"LA PLAYLIST CON EL ID SELECCIONADO NO EXISTE"},status=409)
+            return JsonResponse({"ERROR": "LA PLAYLIST CON EL ID SELECCIONADO NO EXISTE"},status=409)
         else:
             deleteQuery = Playlist.objects.filter(id = playlistid).delete()
-            return JsonResponse({"INFO":"PLAYLIST ELIMINADA SATISFACTORIAMENTE"},status=200)
+            return JsonResponse({"INFO": "PLAYLIST ELIMINADA SATISFACTORIAMENTE"},status=200)
     
-    #Endpoint buscar playlist por id para ver su contenido
+    # Endpoint buscar playlist por id para ver su contenido
     elif request.method == "GET":
-        #Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
-        #también será un objeto. MIRAR *
+        # Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
+        # también será un objeto. MIRAR *
         queryPlaylist = Cancionplaylist.objects.filter(playlist = playlistid).select_related('cancion')
-        
+
         songs_list = []
-        #Recorremos el array y guardamos en un diccionario los datos de las canciones que queremos y en un array a su vez
+        # Recorremos el array y guardamos en un diccionario los datos de las canciones y en un array a su vez.
         for cancion in queryPlaylist:
             song = {
                 'nombre': cancion.cancion.título,
                 'duración': cancion.cancion.duración,
-                'album': cancion.cancion.album.título,#* --> aquí queremos el titulo del album y album es foreign en canciones.
+                'album': cancion.cancion.album.título,  # queremos el titulo del album y album: foreign en canciones.
                 'artista': cancion.cancion.artista.nombre
             }
             songs_list.append(song)
 
-        #print(songs_list)
+        # print(songs_list)
 
         return JsonResponse(songs_list, safe=False)
+
+
+@csrf_exempt
+def buscar_canciones(request):
+    if request.method == "GET":
+        query_canciones = Canciones.objects.all()  # Se recogen todas la canciones en una QUERY
+        query_search = request.GET.get("search", None)  # Se recoge el parámetro enviado SEARCH
+
+        if query_search:
+            query_canciones = query_canciones.filter(título__icontains=query_search)  # Filtrado de canciones por titulo
+            if query_canciones.count() == 0:
+                return JsonResponse({"info": "No hay ninguna canción asociada"},status=200)
+            # Ordenación por defecto en título o por parámetro sort.
+            sort_by = request.GET.get("sort", "título")
+            query_canciones.order_by(sort_by)
+
+            # Paginación
+            paginador = Paginator(query_canciones, request.GET.get("limit", 10))  # Paginador de 10 pág. por defecto
+            page = request.GET.get("pag", 1)  # Primera página por defecto
+
+            # Generación de json
+            canciones = paginador.get_page(page)  # Se escoge la página que se inserta en el json
+            json_canciones = []
+            json_cancion = {}
+            for cancion in canciones:  # Iteración for para cada canción en canciones
+
+                query_ratings = Ratings.objects.filter(cancion=cancion.id)
+
+                for rating in query_ratings:
+
+                    json_cancion = {
+                        "título": cancion.título,
+                        "duración": cancion.duración,
+                        "album": cancion.album.título,
+                        "rating": {
+                            "autor": rating.author.nombre_usuario,
+                            "comentario": rating.comments,
+                            "stars": rating.stars
+                        }
+                    }
+                    json_canciones.append(json_cancion)  # Se añade el json de cada canción en el json_canciones
+
+            return JsonResponse({"canciones": json_canciones, "total": paginador.count, "page": page},
+                            status=200)
+        else:
+            return JsonResponse({"error": "No se envió parámetro search"}, status=400)
+    else:
+        return JsonResponse({"error": "No se ha enviado un GET"}, status=405)
