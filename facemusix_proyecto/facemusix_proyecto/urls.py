@@ -24,5 +24,6 @@ urlpatterns = [
     path('playlists', views.Playlists),
     path('playlists/<int:playlistid>',views.playlistById),
     path('session', views.login_logout),
-    path('songs', views.buscar_canciones)
+    path('songs', views.buscar_canciones),
+    path('songs/<int:cancionId>', views.cancion_ID)
 ]
