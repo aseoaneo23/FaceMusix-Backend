@@ -37,7 +37,7 @@ def verify_token(request):
     except jwt.ExpiredSignatureError:
         return JsonResponse({"Error":"Token has expired"}, status=401),None,None
     except jwt.InvalidTokenError:
-        return JsonResponse({"Error":"Token inválido"}),None,None
+        return JsonResponse({"Error":"Token inválido"},status=401),None,None
     
 @csrf_exempt
 # Función para el registro de usuarios
