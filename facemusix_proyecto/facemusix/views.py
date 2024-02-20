@@ -101,13 +101,6 @@ def login_logout(request):
 
                 token = create_token(Usuarios.objects.get(email=email).id)
 
-                payload = {
-                    'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
-                    'iat': datetime.datetime.utcnow(),
-                }
-
-                token = jwt.encode(payload, 'tu_clave_secreta', algorithm='HS256')
-
                 Usuarios.objects.filter(email=email).update(token=token)
                 return JsonResponse({"token": token}, status=201)
             
