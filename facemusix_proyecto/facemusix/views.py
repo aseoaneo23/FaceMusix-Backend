@@ -1,6 +1,7 @@
 from django.shortcuts import render
 from django.http import JsonResponse
 from django.contrib.auth.hashers import make_password
+from django.core.paginator import Paginator
 from django.views.decorators.csrf import csrf_exempt
 import json
 from django.contrib.auth.hashers import check_password
@@ -25,7 +26,35 @@ def verify_token(request):
     except jwt.InvalidTokenError:
         return JsonResponse({"error": "Token no válido!"}, status=401), None
 
+# Comprobaciones de JWT
+SECRET_KEY = 'clavesegura' #clave almacenada de prueba 
+@csrf_exempt
+def create_token(user_id):
+    payload = {
+        'user_id': user_id,
+        'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
+        'iat': datetime.datetime.utcnow()
+    }
+    token = jwt.encode(payload, SECRET_KEY, algorithm='HS256')
+    return token
 
+@csrf_exempt
+def verify_token(request):
+    token = request.META.get('HTTP_AUTHORIZATION',None)
+    if not token:
+        return JsonResponse({"Message": "Token is missing"}, status=401),None,None
+    
+    try:
+        if token.startswith('Bearer '):
+            token = token.split(' ')[1]
+
+        payload = jwt.decode(token, SECRET_KEY, algorithms=['HS256'])
+        return None, payload,token
+    except jwt.ExpiredSignatureError:
+        return JsonResponse({"Error":"Token has expired"}, status=401),None,None
+    except jwt.InvalidTokenError:
+        return JsonResponse({"Error":"Token inválido"}),None,None
+    
 @csrf_exempt
 # Función para el registro de usuarios
 def Registro(request):
@@ -66,6 +95,7 @@ def Registro(request):
 # Función para el login y logout.
 def login_logout(request):
     if request.method == 'POST':
+
         json_respuesta = json.loads(request.body)
 
         try:
@@ -78,31 +108,37 @@ def login_logout(request):
             return JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
         else:
             queryEmail = Usuarios.objects.filter(email=email).count()
-            print(password)
-            print(Usuarios.objects.get(email=email).passwd)
-            print(check_password(password, Usuarios.objects.get(email=email).passwd))
+            
             if queryEmail == 0:
                 return JsonResponse({"error": "Email incorrecto."}, status=405)
-            elif check_password(password, Usuarios.objects.get(email=email).passwd) == 1:
+            elif check_password(password, Usuarios.objects.get(email=email).passwd) == 0:
                 return JsonResponse({"error": "Contraseña incorrecta."}, status=405)
             else:
+
+                token = create_token(Usuarios.objects.get(email=email).id)
+
                 payload = {
                     'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
                     'iat': datetime.datetime.utcnow(),
                 }
 
                 token = jwt.encode(payload, 'tu_clave_secreta', algorithm='HS256')
+
                 Usuarios.objects.filter(email=email).update(token=token)
                 return JsonResponse({"token": token}, status=201)
-    elif request.method == "DELETE":
-        token = request.META.get('HTTP_AUTHORIZATION', None)
-        queryToken = Usuarios.objects.filter(token=token).count()
+            
+    elif request.method == "PATCH":
+
+        error_response,payload,token= verify_token(request)
+
+        if error_response:
+            return error_response
 
         if token == "" or queryToken == 0:
             return JsonResponse({"error": "Token no enviado o inexistente."}, status=400)
         else:
-            Usuarios.objects.filter(token=token).update(token="")
-            return JsonResponse({"status": "success"})
+            Usuarios.objects.filter(token=token).update(token=None)
+            return JsonResponse({"status": "logout successfully"})
     else:
         return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
 
@@ -110,91 +146,139 @@ def login_logout(request):
 @csrf_exempt
 # Función para el listado o creación de playlists.
 def Playlists(request):
-    # Guardar datos de token y comprobar que se esté pasando ese token
-    token = request.headers.get("sessionToken", None)
 
-    if token == None:
-        return JsonResponse({"ALERTA": "NO SE HA PASADO UN TOKEN DE USUARIO"}, status=401)
+    #Guardar datos de token y comprobar que se esté pasando ese token
+    error_response,payload,token= verify_token(request)
 
-    # Endpoint crear playlist
-    # Si el método es post es una creación de una playlist
-    if request.method == "POST":
-        playlistName = request.POST.get("playlistName")
-
-        if playlistName != "":
-
-            queryPlaylists = Playlist.objects.filter(nombre=playlistName).count()
-            if queryPlaylists > 0:
-                return JsonResponse({"ALERTA": "YA EXISTE UNA PLAYLIST CON EL NOMBRE INTRODUCIDO"}, status=409)
-            else:
-                newPlaylist = Playlist(nombre=playlistName)
-                newPlaylist.save()
-                return JsonResponse({"INFO": "SE HA CREADO SATISFACTORIAMENTE LA PLAYLIST"}, status=201)
-        else:
-            return JsonResponse({"ALERTA": "EL NOMBRE DE LA PLAYLIST NO PUEDE QUEDAR VACIO"}, status=400)
-
-    # Endpoint listar playlists
-    # si el método es GET, se listan las playlists
-    elif request.method == "GET":
-
-        queryPlaylists = Playlist.objects.all()
-
-        finalResponse = []
-
-        for everyPlaylist in queryPlaylists:
-            dicc = {}
-            dicc["Nombre"] = everyPlaylist.nombre
-            finalResponse.append(dicc)
-
-        return JsonResponse(finalResponse, safe=False)
-
+    #Endpoint crear playlist
+    #Si el método es post es una creación de una playlist
+    if error_response:
+        return error_response
     else:
-        return JsonResponse({"ALERTA": "NO HAS MANDADO UN MÉTODO ADECUADO. PRUEBA CON POST O GET"})
+        if request.method == "POST":
+            playlistName = request.POST.get("playlistName")
 
+            if playlistName != "":
+
+                queryPlaylists = Playlist.objects.filter(nombre=playlistName).count()
+                if queryPlaylists > 0:
+                    return JsonResponse({"ALERTA":"YA EXISTE UNA PLAYLIST CON EL NOMBRE INTRODUCIDO"},status=409)
+                else:
+                    Playlist(nombre=playlistName).save()
+                    return JsonResponse({"INFO":"SE HA CREADO SATISFACTORIAMENTE LA PLAYLIST"},status=201)
+            else:
+                return JsonResponse({"ALERTA":"EL NOMBRE DE LA PLAYLIST NO PUEDE QUEDAR VACIO"},status=400)
+            
+        #Endpoint listar playlists
+        # si el método es GET, se listan las playlists
+        elif request.method == "GET":
+
+            queryPlaylists = Playlist.objects.all()
+
+            finalResponse = []
+
+            for everyPlaylist in queryPlaylists:
+                dicc = {}
+                dicc["Nombre"] = everyPlaylist.nombre
+                finalResponse.append(dicc)
+
+            return JsonResponse(finalResponse, safe=False)
+                
+        else:
+            return JsonResponse({"ALERTA":"NO HAS MANDADO UN MÉTODO ADECUADO. PRUEBA CON POST O GET"})
+        
+@csrf_exempt
+#funcion para eliminar plahylist
+def playlistById (request,playlistid):
+#Guardar datos de token y comprobar que se esté pasando ese token
+    error_response,payload,token= verify_token(request)
+
+    if error_response:
+        return error_response
+    else:
+    #Endpoint borrar playlist por id
+    #Comprobamos el método
+        if request.method == "DELETE":
+
+            checkidQuery = Playlist.objects.filter(id = playlistid).count()
+
+            #COmprobamos que exista la playlist a borrar
+            if checkidQuery == 0:
+                return JsonResponse({"ERROR":"LA PLAYLIST CON EL ID SELECCIONADO NO EXISTE"},status=409)
+            else:
+                Playlist.objects.filter(id = playlistid).delete()
+                return JsonResponse({"INFO":"PLAYLIST ELIMINADA SATISFACTORIAMENTE"},status=200)
+        
+        #Endpoint buscar playlist por id para ver su contenido
+        elif request.method == "GET":
+            #Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
+            #también será un objeto. MIRAR *
+            queryPlaylist = Cancionplaylist.objects.filter(playlist = playlistid).select_related('cancion')
+            
+            songs_list = []
+            #Recorremos el array y guardamos en un diccionario los datos de las canciones que queremos y en un array a su vez
+            for cancion in queryPlaylist:
+                song = {
+                    'nombre': cancion.cancion.título,
+                    'duración': cancion.cancion.duración,
+                    'album': cancion.cancion.album.título,#* --> aquí queremos el titulo del album y album es foreign en canciones.
+                    'artista': cancion.cancion.artista.nombre
+                }
+                songs_list.append(song)
+
+            return JsonResponse(songs_list, safe=False)
 
 @csrf_exempt
-# funcion para eliminar plahylist
-def playlistById(request, playlistid):
-    # Guardar datos de token y comprobar que se esté pasando ese token
-    # token = request.headers.get("sessionToken",None)
+#Función para buscar usuarios por id o por nombre
+def buscarUsuarios (request):
+    if request.method == "GET":
 
-    # if token == None:
-    #   return JsonResponse({"ALERTA":"NO SE HA PASADO UN TOKEN DE USUARIO"},status=401)
+        error_response,payload,token= verify_token(request)
+        clientQuery = request.GET.get("search", None)
 
-    # Endpoint borrar playlist por id
-    # Comprobamos el método
-    if request.method == "DELETE":
-
-        checkidQuery = Playlist.objects.filter(id=playlistid).count()
-
-        # Comprobamos que exista la playlist a borrar
-        if checkidQuery == 0:
-            return JsonResponse({"ERROR": "LA PLAYLIST CON EL ID SELECCIONADO NO EXISTE"}, status=409)
+        if clientQuery is None or clientQuery == "":
+            return JsonResponse({"ERROR":"No has pasado ningún parámetro \"search\" de búsqueda"}, status=400)
+        if error_response:
+            return error_response
         else:
-            deleteQuery = Playlist.objects.filter(id=playlistid).delete()
-            return JsonResponse({"INFO": "PLAYLIST ELIMINADA SATISFACTORIAMENTE"}, status=200)
+            #Busqueda de el usuario solicitado por el search con conatins para que muestre todo lo que contenga esa cadena
+            queryToSearch = Usuarios.objects.filter(nombre_usuario__icontains = clientQuery)
 
-    # Endpoint buscar playlist por id para ver su contenido
-    elif request.method == "GET":
-        # Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
-        # también será un objeto. MIRAR *
-        queryPlaylist = Cancionplaylist.objects.filter(playlist=playlistid).select_related('cancion')
+            #Ordenación
+            sort_by = request.GET.get('sort', 'nombre_usuario')
+            queryToSearch = queryToSearch.order_by(sort_by)
 
-        songs_list = []
-        # Recorremos el array y guardamos en un diccionario los datos de las canciones y en un array a su vez.
-        for cancion in queryPlaylist:
-            song = {
-                'nombre': cancion.cancion.título,
-                'duración': cancion.cancion.duración,
-                'album': cancion.cancion.album.título,  # queremos el titulo del album y album: foreign en canciones.
-                'artista': cancion.cancion.artista.nombre
-            }
-            songs_list.append(song)
+            #Paginación
+            paginator = Paginator(queryToSearch, request.GET.get("limit",10))
+            #Controlamos los resultados obtenidos
+            if queryToSearch.exists():
+                
+                #Usamos la paginación
+                page = request.GET.get('page',1)
+                users = paginator.get_page(page)
+                users__data=[]
+                for user in users:
+                    #Consulta de comprobación de tabla amigos, para ver si es o no mi amigo y cubrir el campo booleano following.
 
-        # print(songs_list)
+                    queryFollowing = Amigos.objects.filter(id_usuario = payload["user_id"], id_usuario_amigo = user.pk).count()
+                    if queryFollowing < 1:
+                        following = False
+                    else:
+                        following = True
 
-        return JsonResponse(songs_list, safe=False)
-
+                    #Instanciamos el objeto a mostrar
+                    userDicc ={
+                        "IMG": user.url_avatar,
+                        "NAME": user.nombre,
+                        "YOUFOLLOWHIM": following
+                    }
+                    users__data.append(userDicc)
+                            
+                return JsonResponse({"Usuarios" : users__data, "Total elements": paginator.count, "Page":page},status=200, safe=False)
+            else:
+                return JsonResponse({"INFO":"El usuario con nombre: " + clientQuery + " no existe."})
+    else:
+        return JsonResponse({"ERROR":"Metodo HTTP no soportado"},status=400)
 
 @csrf_exempt
 def buscar_canciones(request):
@@ -252,49 +336,72 @@ def follow_unfollow(request):
     if error_response:
       return error_response
     
+    # Comprobamos si el método es DELETE o POST
+    
     if request.method == "DELETE":
 
         json_respuesta = json.loads(request.body)
-
+        
+        # Try para comprobar los parámetros enviados  en el header
         try:
             usuario = json_respuesta["usuario"]
             amigo = json_respuesta["amigo"]
-        except KeyError:
-            return JsonResponse({"error": "Faltan parámetros"}, status=404)
-
+        except KeyError: 
+            return JsonResponse({"error": "Faltan parámetros"}, status=404) 
+            # Si no existe algún parámetro, devuelve status 404
+            
+        # Try para comprobar si existe la relación, es decir, si el usuario sigue a el otro usuario
         try:
+          # Query del modelo Amigos seleccionando el ID del usuario y del amigo al que sigue
             filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo)
         except Amigos.DoesNotExist:
             return JsonResponse({"error": "Bad request"}, status=404)
+            # Si no existe la relación, se lanza status 404. No se puede dejar de seguir si no existe.
+            
         data = {
             "message": "El usuario "+filtrado_usuarios_amigos.id_usuario.nombre+" ha dejado de seguir a el usuario "+filtrado_usuarios_amigos.id_usuario_amigo.nombre
         }
-        filtrado_usuarios_amigos.delete()
+        
+        filtrado_usuarios_amigos.delete() # Se lanza el borrado de la fila del Query anterior.
+        
         return JsonResponse(data)
+      
     elif request.method == "POST":
 
         json_respuesta = json.loads(request.body)
-
+        
+        # Se comprueban los parámetros header en el POST.
         try:
             usuario = json_respuesta["usuario"]
             amigo = json_respuesta["amigo"]
             print(usuario, amigo)
         except KeyError:
             return JsonResponse({"error": "Faltan parámetros"}, status=404)
+            # También se lanza un status 404 si no se encuentran los parámetros.
 
         try:
+            # Misma QUERY que en el DELETE para encontrar la fila en el modelo Amigos con id usuario y amigo.
             filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo).count()
+            
+            # En este caso, si se encuentra quiere decir que el usuario ya está siguiendo a el otros usuario.
             if filtrado_usuarios_amigos > 0:
                 return JsonResponse({"error": "Ya estás siguiendo a este usuario"}, status=400)
-
-        except Amigos.DoesNotExist:
+                # Se devuelve un status 404, ya que no sepuede seguir si ya se sigue.
+        
+        # En la excepción es donde cambiamos la tabla, ya que es donde no existe la fila.
+        except Amigos.DoesNotExist: 
+            
+            # Query para comprobar si existen usuarios con sus respectivos ids
             comprobacion_usuario = Usuarios.objects.filter(id=usuario).count()
             comprobacion_amigo = Usuarios.objects.filter(id=amigo).count()
-
+             
+            # Si no existes se lanza un error
             if comprobacion_amigo < 1 or comprobacion_usuario < 1:
                 return JsonResponse({"error": "No existe ningún usuario o amigo con ese id"}, status=400)
 
-            Amigos(id_usuario=usuario, id_usuario_amigo=amigo).save()
+            Amigos(id_usuario=usuario, id_usuario_amigo=amigo).save() # Se lanza un QUERY para crear la relación.
+            
+            # Se devuelve un JSON para confirmar a quién se ha comenzado a seguir.
             return JsonResponse({"message": "Has comenzado a seguir a "+filtrado_usuarios_amigos.id_usuario_amigo.nombre})
 
 def cancion_ID(request, cancionId):
