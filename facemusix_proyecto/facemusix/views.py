@@ -52,8 +52,11 @@ def login_logout(request):
     if request.method == 'POST':
         json_respuesta = json.loads(request.body)
 
-        email = json_respuesta["email"]
-        password = json_respuesta["password"]
+        try:
+            email = json_respuesta["email"]
+            password = json_respuesta["password"]
+        except KeyError:
+            return JsonResponse({"error": "Faltan parámetros"}, status=404)
 
         if email == "" or password == "":
             return JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
@@ -223,3 +226,54 @@ def buscar_canciones(request):
             return JsonResponse({"error": "No se envió parámetro search"}, status=400)
     else:
         return JsonResponse({"error": "No se ha enviado un GET"}, status=405)
+
+
+@csrf_exempt
+def follow_unfollow(request):
+
+    # verify_token(request)
+
+    if request.method == "DELETE":
+
+        json_respuesta = json.loads(request.body)
+
+        try:
+            usuario = json_respuesta["usuario"]
+            amigo = json_respuesta["amigo"]
+        except KeyError:
+            return JsonResponse({"error": "Faltan parámetros"}, status=404)
+
+        try:
+            filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo)
+        except Amigos.DoesNotExist:
+            return JsonResponse({"error": "Bad request"}, status=404)
+        data = {
+            "message": "El usuario "+filtrado_usuarios_amigos.id_usuario.nombre+" ha dejado de seguir a el usuario "+filtrado_usuarios_amigos.id_usuario_amigo.nombre
+        }
+        filtrado_usuarios_amigos.delete()
+        return JsonResponse(data)
+    elif request.method == "POST":
+
+        json_respuesta = json.loads(request.body)
+
+        try:
+            usuario = json_respuesta["usuario"]
+            amigo = json_respuesta["amigo"]
+            print(usuario, amigo)
+        except KeyError:
+            return JsonResponse({"error": "Faltan parámetros"}, status=404)
+
+        try:
+            filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo).count()
+            if filtrado_usuarios_amigos > 0:
+                return JsonResponse({"error": "Ya estás siguiendo a este usuario"}, status=400)
+
+        except Amigos.DoesNotExist:
+            comprobacion_usuario = Usuarios.objects.filter(id=usuario).count()
+            comprobacion_amigo = Usuarios.objects.filter(id=amigo).count()
+
+            if comprobacion_amigo < 1 or comprobacion_usuario < 1:
+                return JsonResponse({"error": "No existe ningún usuario o amigo con ese id"}, status=400)
+
+            Amigos(id_usuario=usuario, id_usuario_amigo=amigo).save()
+            return JsonResponse({"message": "Has comenzado a seguir a "+filtrado_usuarios_amigos.id_usuario_amigo.nombre})
