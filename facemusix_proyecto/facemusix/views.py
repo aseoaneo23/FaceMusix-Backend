@@ -7,7 +7,24 @@ import json
 from django.contrib.auth.hashers import check_password
 import jwt
 import datetime
-from .models import Amigos,Canciones,Cancionplaylist,Playlist,Usuarios,Albumes,Ratings,Artistas
+from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, Ratings
+from django.core.paginator import Paginator
+
+
+def verify_token(request):
+    token = request.META.get("HTTP_AUTHORIZATION", None)
+    if not token:
+        return JsonResponse({"error", "No se ha enviado ningún token"}, status=401), None
+    try:
+        if token.startswith("Bearer "):
+            token = token.split(" ")[1]
+
+        payload = jwt.decode(token, "tu_clave_secreta", algorithm="HS256")
+        return None, payload
+    except jwt.ExpiredSignatureError:
+        return JsonResponse({"error", "El token ha expirado!"}, status=401), None
+    except jwt.InvalidTokenError:
+        return JsonResponse({"error": "Token no válido!"}, status=401), None
 
 # Comprobaciones de JWT
 SECRET_KEY = 'clavesegura' #clave almacenada de prueba 
@@ -43,12 +60,12 @@ def verify_token(request):
 def Registro(request):
     # Si la petición no es POST mandar error, sólo puede ser un POST.
     if request.method != "POST":
-
-        return JsonResponse({"error":"metodo HTTP no soportado"}, status=405)
+        return JsonResponse({"error": "no es un método POST"}, status=405)
     else:
-        #Comprobamos que se pasen los campos todos cubiertos y las contraseñas coincidan
-        if request.POST.get("name") == "" or request.POST.get("username") == "" or request.POST.get("email") == "" or request.POST.get("password") == "" or request.POST.get("confirmpassword") == "":
-            return JsonResponse({"ALERTA":"DEBES CUBRIR TODOS LOS CAMPOS"},status=400)
+        # Comprobamos que se pasen los campos todos cubiertos y las contraseñas coincidan
+        if request.POST.get("name") == None or request.POST.get("username") == None or request.POST.get(
+                "email") == None or request.POST.get("password") == None or request.POST.get("confirmpassword") == None:
+            return JsonResponse({"ALERTA": "DEBES CUBRIR TODOS LOS CAMPOS"}, status=400)
         elif request.POST.get("password") != request.POST.get("confirmpassword"):
             return JsonResponse({"ALERTA": "LAS CONTRASEÑAS NO COINCIDEN"}, status=400)
 
@@ -59,12 +76,11 @@ def Registro(request):
         # Consultas para comprobar si existe el usuario
         queryEmails = Usuarios.objects.filter(email=email).count()
         queryUsernames = Usuarios.objects.filter(nombre_usuario=username).count()
-
-        #Comprobaciones para evitar redundancia
-        if(queryEmails > 0):
-            return JsonResponse({"Mensaje":"el email ya esta registrado"},status=409)
-        elif(queryUsernames > 0):
-            return JsonResponse({"Mensaje":"el nombre de usuario ya esta en uso"},status=409)
+        # Comprobaciones para evitar redundancia
+        if (queryEmails > 0):
+            return JsonResponse({"Mensaje": "el email ya esta registrado"})
+        elif (queryUsernames > 0):
+            return JsonResponse({"Mensaje": "el nombre de usuario ya esta en uso"})
         else:
             name = request.POST.get("name")
             password_withouthash = request.POST.get("password")
@@ -81,8 +97,12 @@ def login_logout(request):
     if request.method == 'POST':
 
         json_respuesta = json.loads(request.body)
-        email = json_respuesta["email"]
-        password = json_respuesta["password"]
+
+        try:
+            email = json_respuesta["email"]
+            password = json_respuesta["password"]
+        except KeyError:
+            return JsonResponse({"error": "Faltan parámetros"}, status=404)
 
         if email == "" or password == "":
             return JsonResponse({"error": "Los campos no pueden estar vacíos."}, status=400)
@@ -94,7 +114,16 @@ def login_logout(request):
             elif check_password(password, Usuarios.objects.get(email=email).passwd) == 0:
                 return JsonResponse({"error": "Contraseña incorrecta."}, status=405)
             else:
+
                 token = create_token(Usuarios.objects.get(email=email).id)
+
+                payload = {
+                    'exp': datetime.datetime.utcnow() + datetime.timedelta(days=1),
+                    'iat': datetime.datetime.utcnow(),
+                }
+
+                token = jwt.encode(payload, 'tu_clave_secreta', algorithm='HS256')
+
                 Usuarios.objects.filter(email=email).update(token=token)
                 return JsonResponse({"token": token}, status=201)
             
@@ -102,19 +131,22 @@ def login_logout(request):
 
         error_response,payload,token= verify_token(request)
 
-       # token = request.META.get("HTTP_AUTHORIZATION",None)
-
         if error_response:
             return error_response
+
+        if token == "" or queryToken == 0:
+            return JsonResponse({"error": "Token no enviado o inexistente."}, status=400)
         else:
             Usuarios.objects.filter(token=token).update(token=None)
             return JsonResponse({"status": "logout successfully"})
     else:
         return JsonResponse({"error": "No se ha pasado un DELETE o POST"})
-              
+
+
 @csrf_exempt
-#Función para el listado o creación de playlists.
+# Función para el listado o creación de playlists.
 def Playlists(request):
+
     #Guardar datos de token y comprobar que se esté pasando ese token
     error_response,payload,token= verify_token(request)
 
@@ -132,8 +164,7 @@ def Playlists(request):
                 if queryPlaylists > 0:
                     return JsonResponse({"ALERTA":"YA EXISTE UNA PLAYLIST CON EL NOMBRE INTRODUCIDO"},status=409)
                 else:
-                    newPlaylist = Playlist(nombre=playlistName)
-                    newPlaylist.save()
+                    Playlist(nombre=playlistName).save()
                     return JsonResponse({"INFO":"SE HA CREADO SATISFACTORIAMENTE LA PLAYLIST"},status=201)
             else:
                 return JsonResponse({"ALERTA":"EL NOMBRE DE LA PLAYLIST NO PUEDE QUEDAR VACIO"},status=400)
@@ -175,7 +206,7 @@ def playlistById (request,playlistid):
             if checkidQuery == 0:
                 return JsonResponse({"ERROR":"LA PLAYLIST CON EL ID SELECCIONADO NO EXISTE"},status=409)
             else:
-                deleteQuery = Playlist.objects.filter(id = playlistid).delete()
+                Playlist.objects.filter(id = playlistid).delete()
                 return JsonResponse({"INFO":"PLAYLIST ELIMINADA SATISFACTORIAMENTE"},status=200)
         
         #Endpoint buscar playlist por id para ver su contenido
@@ -194,8 +225,6 @@ def playlistById (request,playlistid):
                     'artista': cancion.cancion.artista.nombre
                 }
                 songs_list.append(song)
-
-            #print(songs_list)
 
             return JsonResponse(songs_list, safe=False)
 
@@ -250,3 +279,156 @@ def buscarUsuarios (request):
                 return JsonResponse({"INFO":"El usuario con nombre: " + clientQuery + " no existe."})
     else:
         return JsonResponse({"ERROR":"Metodo HTTP no soportado"},status=400)
+
+@csrf_exempt
+def buscar_canciones(request):
+    if request.method == "GET":
+        query_canciones = Canciones.objects.all()  # Se recogen todas la canciones en una QUERY
+        query_search = request.GET.get("search", None)  # Se recoge el parámetro enviado SEARCH
+
+        if query_search:
+            query_canciones = query_canciones.filter(título__icontains=query_search)  # Filtrado de canciones por titulo
+            if query_canciones.count() == 0:
+                return JsonResponse({"info": "No hay ninguna canción asociada"}, status=200)
+            # Ordenación por defecto en título o por parámetro sort.
+            sort_by = request.GET.get("sort", "título")
+            query_canciones.order_by(sort_by)
+
+            # Paginación
+            paginador = Paginator(query_canciones, request.GET.get("limit", 10))  # Paginador de 10 pág. por defecto
+            page = request.GET.get("pag", 1)  # Primera página por defecto
+
+            # Generación de json
+            canciones = paginador.get_page(page)  # Se escoge la página que se inserta en el json
+            json_canciones = []
+            json_cancion = {}
+            for cancion in canciones:  # Iteración for para cada canción en canciones
+
+                query_ratings = Ratings.objects.filter(cancion=cancion.id)
+
+                for rating in query_ratings:
+                    json_cancion = {
+                        "título": cancion.título,
+                        "duración": cancion.duración,
+                        "album": cancion.album.título,
+                        "rating": {
+                            "autor": rating.author.nombre_usuario,
+                            "comentario": rating.comments,
+                            "stars": rating.stars
+                        }
+                    }
+                    json_canciones.append(json_cancion)  # Se añade el json de cada canción en el json_canciones
+
+            return JsonResponse({"canciones": json_canciones, "total": paginador.count, "page": page},
+                                status=200)
+        else:
+            return JsonResponse({"error": "No se envió parámetro search"}, status=400)
+    else:
+        return JsonResponse({"error": "No se ha enviado un GET"}, status=405)
+
+
+@csrf_exempt
+
+def follow_unfollow(request):
+
+    error_response,payload,token= verify_token(request)
+    
+    if error_response:
+      return error_response
+    
+    # Comprobamos si el método es DELETE o POST
+    
+    if request.method == "DELETE":
+
+        json_respuesta = json.loads(request.body)
+        
+        # Try para comprobar los parámetros enviados  en el header
+        try:
+            usuario = json_respuesta["usuario"]
+            amigo = json_respuesta["amigo"]
+        except KeyError: 
+            return JsonResponse({"error": "Faltan parámetros"}, status=404) 
+            # Si no existe algún parámetro, devuelve status 404
+            
+        # Try para comprobar si existe la relación, es decir, si el usuario sigue a el otro usuario
+        try:
+          # Query del modelo Amigos seleccionando el ID del usuario y del amigo al que sigue
+            filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo)
+        except Amigos.DoesNotExist:
+            return JsonResponse({"error": "Bad request"}, status=404)
+            # Si no existe la relación, se lanza status 404. No se puede dejar de seguir si no existe.
+            
+        data = {
+            "message": "El usuario "+filtrado_usuarios_amigos.id_usuario.nombre+" ha dejado de seguir a el usuario "+filtrado_usuarios_amigos.id_usuario_amigo.nombre
+        }
+        
+        filtrado_usuarios_amigos.delete() # Se lanza el borrado de la fila del Query anterior.
+        
+        return JsonResponse(data)
+      
+    elif request.method == "POST":
+
+        json_respuesta = json.loads(request.body)
+        
+        # Se comprueban los parámetros header en el POST.
+        try:
+            usuario = json_respuesta["usuario"]
+            amigo = json_respuesta["amigo"]
+            print(usuario, amigo)
+        except KeyError:
+            return JsonResponse({"error": "Faltan parámetros"}, status=404)
+            # También se lanza un status 404 si no se encuentran los parámetros.
+
+        try:
+            # Misma QUERY que en el DELETE para encontrar la fila en el modelo Amigos con id usuario y amigo.
+            filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo).count()
+            
+            # En este caso, si se encuentra quiere decir que el usuario ya está siguiendo a el otros usuario.
+            if filtrado_usuarios_amigos > 0:
+                return JsonResponse({"error": "Ya estás siguiendo a este usuario"}, status=400)
+                # Se devuelve un status 404, ya que no sepuede seguir si ya se sigue.
+        
+        # En la excepción es donde cambiamos la tabla, ya que es donde no existe la fila.
+        except Amigos.DoesNotExist: 
+            
+            # Query para comprobar si existen usuarios con sus respectivos ids
+            comprobacion_usuario = Usuarios.objects.filter(id=usuario).count()
+            comprobacion_amigo = Usuarios.objects.filter(id=amigo).count()
+             
+            # Si no existes se lanza un error
+            if comprobacion_amigo < 1 or comprobacion_usuario < 1:
+                return JsonResponse({"error": "No existe ningún usuario o amigo con ese id"}, status=400)
+
+            Amigos(id_usuario=usuario, id_usuario_amigo=amigo).save() # Se lanza un QUERY para crear la relación.
+            
+            # Se devuelve un JSON para confirmar a quién se ha comenzado a seguir.
+            return JsonResponse({"message": "Has comenzado a seguir a "+filtrado_usuarios_amigos.id_usuario_amigo.nombre})
+
+def cancion_ID(request, cancionId):
+
+    if request.method == "GET":
+        # Se comprueba si existe una canción con el ID envaido
+        if Canciones.objects.filter(id=cancionId).count() < 1:
+            return JsonResponse({"message": "No existe ninguna canción"}, status=409)
+
+        # Query de canciones filtradas por ID
+        query_canciones = Canciones.objects.filter(id=cancionId)[0]
+        # Query de ratings asociados a la canción
+        json_ratings = Ratings.objects.filter(cancion=cancionId)[0]
+
+        json_cancion = {
+            "titulo": query_canciones.título,
+            "duración": query_canciones.duración,
+            "album": query_canciones.album.título,
+            "artista": query_canciones.artista.nombre,
+            "ratings": {
+                "autor": json_ratings.author.nombre_usuario,
+                "comentario": json_ratings.comments,
+                "stars": json_ratings.stars,
+            }
+        }
+
+        return JsonResponse({"cancion": json_cancion}, status=200)
+    else:
+        return JsonResponse({"error": "No se ha enviado un GET"}, status=400)
+
