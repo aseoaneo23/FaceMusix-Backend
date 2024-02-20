@@ -10,22 +10,6 @@ import datetime
 from .models import Amigos, Canciones, Cancionplaylist, Playlist, Usuarios, Ratings
 from django.core.paginator import Paginator
 
-
-def verify_token(request):
-    token = request.META.get("HTTP_AUTHORIZATION", None)
-    if not token:
-        return JsonResponse({"error", "No se ha enviado ningún token"}, status=401), None
-    try:
-        if token.startswith("Bearer "):
-            token = token.split(" ")[1]
-
-        payload = jwt.decode(token, "tu_clave_secreta", algorithm="HS256")
-        return None, payload
-    except jwt.ExpiredSignatureError:
-        return JsonResponse({"error", "El token ha expirado!"}, status=401), None
-    except jwt.InvalidTokenError:
-        return JsonResponse({"error": "Token no válido!"}, status=401), None
-
 # Comprobaciones de JWT
 SECRET_KEY = 'clavesegura' #clave almacenada de prueba 
 @csrf_exempt
@@ -133,9 +117,6 @@ def login_logout(request):
 
         if error_response:
             return error_response
-
-        if token == "" or queryToken == 0:
-            return JsonResponse({"error": "Token no enviado o inexistente."}, status=400)
         else:
             Usuarios.objects.filter(token=token).update(token=None)
             return JsonResponse({"status": "logout successfully"})
