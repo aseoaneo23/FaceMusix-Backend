@@ -186,9 +186,12 @@ def playlistById (request,playlistid):
         #Endpoint buscar playlist por id para ver su contenido
         elif request.method == "GET":
             #Query que devuelve un array de objetos que son canciones con sus campos. Si un campo de ellas es foreign,
-            #también será un objeto. MIRAR *
+            #también será un objeto. 
             queryPlaylist = Cancionplaylist.objects.filter(playlist = playlistid).select_related('cancion')
             
+            if queryPlaylist.count() < 1:
+                return JsonResponse({"INFO":"La playlist con id seleccionado no existe, prueba con otro id"},status=400)
+                
             songs_list = []
             #Recorremos el array y guardamos en un diccionario los datos de las canciones que queremos y en un array a su vez
             for cancion in queryPlaylist:
@@ -208,6 +211,10 @@ def buscarUsuarios (request):
     if request.method == "GET":
 
         error_response,payload,token= verify_token(request)
+
+        if error_response:
+            return error_response
+        
         clientQuery = request.GET.get("search", None)
 
         if clientQuery is None or clientQuery == "":
@@ -252,7 +259,7 @@ def buscarUsuarios (request):
             else:
                 return JsonResponse({"INFO":"El usuario con nombre: " + clientQuery + " no existe."})
     else:
-        return JsonResponse({"ERROR":"Metodo HTTP no soportado"},status=400)
+        return JsonResponse({"ERROR":"Metodo HTTP no soportado, prueba con un GET"},status=400)
 
 @csrf_exempt
 def buscar_canciones(request):
@@ -348,17 +355,15 @@ def follow_unfollow(request):
         try:
             usuario = json_respuesta["usuario"]
             amigo = json_respuesta["amigo"]
-            print(usuario, amigo)
         except KeyError:
             return JsonResponse({"error": "Faltan parámetros"}, status=404)
             # También se lanza un status 404 si no se encuentran los parámetros.
 
         try:
             # Misma QUERY que en el DELETE para encontrar la fila en el modelo Amigos con id usuario y amigo.
-            filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo).count()
-            
+            filtrado_usuarios_amigos = Amigos.objects.select_related("id_usuario").filter(id_usuario=usuario).get(id_usuario_amigo=amigo)
             # En este caso, si se encuentra quiere decir que el usuario ya está siguiendo a el otros usuario.
-            if filtrado_usuarios_amigos > 0:
+            if filtrado_usuarios_amigos != None: #SI no devuelve ningún objeto usuario es que no hay la relacion de amigos entre los dos usuarios
                 return JsonResponse({"error": "Ya estás siguiendo a este usuario"}, status=400)
                 # Se devuelve un status 404, ya que no sepuede seguir si ya se sigue.
         
@@ -368,15 +373,14 @@ def follow_unfollow(request):
             # Query para comprobar si existen usuarios con sus respectivos ids
             comprobacion_usuario = Usuarios.objects.filter(id=usuario).count()
             comprobacion_amigo = Usuarios.objects.filter(id=amigo).count()
-             
             # Si no existes se lanza un error
             if comprobacion_amigo < 1 or comprobacion_usuario < 1:
                 return JsonResponse({"error": "No existe ningún usuario o amigo con ese id"}, status=400)
 
-            Amigos(id_usuario=usuario, id_usuario_amigo=amigo).save() # Se lanza un QUERY para crear la relación.
+            Amigos(id_usuario = Usuarios.objects.filter(id=usuario)[0], id_usuario_amigo=Usuarios.objects.filter(id=amigo)[0]).save() # Se lanza un QUERY para crear la relación.
             
             # Se devuelve un JSON para confirmar a quién se ha comenzado a seguir.
-            return JsonResponse({"message": "Has comenzado a seguir a "+filtrado_usuarios_amigos.id_usuario_amigo.nombre})
+            return JsonResponse({"message": "Has comenzado a seguir a un nuevo usuario" })
 
 def cancion_ID(request, cancionId):
 
